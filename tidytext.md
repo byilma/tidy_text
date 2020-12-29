@@ -39,6 +39,21 @@ library(rvest)
     ## 
     ##     guess_encoding
 
+``` r
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_color_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
 ## Get Data
 
 ``` r
@@ -124,4 +139,100 @@ dynamite_words %>%
 
     ## Selecting by n
 
-![](tidytext_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+<img src="tidytext_files/figure-gfm/unnamed-chunk-6-1.png" width="90%" />
+
+# Compare across groups
+
+Groups I want to compare are 1 star and 5 star reviews.
+
+How many words are coming out of 1 star reviews? 5 star reviews?
+
+``` r
+dynamite_words %>% 
+  filter(stars %in% c(1,5)) %>% 
+  group_by(stars) %>% 
+    summarize (n = n())
+```
+
+    ## `summarise()` ungrouping output (override with `.groups` argument)
+
+    ## # A tibble: 2 x 2
+    ##   stars     n
+    ##   <dbl> <int>
+    ## 1     1   665
+    ## 2     5  4478
+
+Let’s count words in these groups
+
+What are the top 5 words that are appear the most
+
+``` r
+dynamite_words %>% 
+  filter(stars %in% c(1, 5)) %>% 
+  group_by(stars) %>% 
+  count(word) %>% 
+  top_n(5)
+```
+
+    ## Selecting by n
+
+    ## # A tibble: 10 x 3
+    ## # Groups:   stars [2]
+    ##    stars word        n
+    ##    <dbl> <chr>   <int>
+    ##  1     1 dumb        8
+    ##  2     1 dvd        10
+    ##  3     1 movie      50
+    ##  4     1 time        9
+    ##  5     1 watch       8
+    ##  6     5 classic   102
+    ##  7     5 funny     123
+    ##  8     5 love      136
+    ##  9     5 movie     430
+    ## 10     5 time       99
+
+Now, let’s say we’re interested in something like: does the word “dumb”
+appear more often in 1 star reviews relative to 5 star reviews? So, this
+is where the “odds ratio”-esque thing comes in.
+
+We now need an “odds ratio”
+
+``` r
+word_ratios = dynamite_words %>% 
+  filter(stars %in% c(1, 5)) %>% 
+  count(word, stars) %>% # we're going to focus on words that get used somehow frequently
+  group_by(word) %>%  
+  filter(sum(n) >= 5) %>% # focusing on words that appear at least 5 times 
+  ungroup(word) %>% 
+  pivot_wider(
+    names_from = stars, 
+    values_from = n, 
+    names_prefix = "stars_",
+    values_fill = 0
+  ) %>% 
+  mutate(
+    stars_1_odds = (stars_1 + 1) / (sum(stars_1) + 1),
+    stars_5_odds = (stars_5 + 1) / (sum(stars_5) + 1),
+    log_OR = log(stars_5_odds / stars_1_odds) #high values of these means that the word appears more times in 5 stars than 1 stars; lower values than 0 means that the word appears more times in the 1 stars
+  )
+```
+
+Can we do something useful with this ^^ ?
+
+Trying to identify words that are more likely to happen in the 1 star
+reviews than 5 star reviews
+
+``` r
+word_ratios %>% 
+  mutate(
+    pos_log_OR = ifelse(log_OR > 0, "5 star > 1 star", "1 star > 5 star")
+  ) %>%
+  group_by(pos_log_OR) %>% 
+  top_n(10, abs(log_OR)) %>%  # getting the most extreme values of the pos_log_OR stuff
+  ungroup() %>% 
+  mutate(word = fct_reorder(word, log_OR)) %>% 
+  ggplot(aes(y = word, x = log_OR, fill = pos_log_OR)) + 
+  geom_bar(stat = "identity")
+```
+
+<img src="tidytext_files/figure-gfm/unnamed-chunk-10-1.png" width="90%" />
