@@ -196,5 +196,68 @@ word_ratios %>%
 ```
 
 
+## Sentiment Analysis
 
+Load lexicon
+
+```{r}
+bing_sentiments = get_sentiments("bing")
+```
+
+
+```{r}
+dynamite_sentiments = inner_join(dynamite_words, bing_sentiments) %>% 
+  count(review_num, sentiment) %>% 
+    pivot_wider(
+      names_from = sentiment, 
+      values_from = n,
+      values_fill = 0
+    )  %>% 
+    mutate(
+      review_sentiment = positive - negative
+    ) %>% 
+    select(review_num, review_sentiment)
+    
+```
+
+
+
+Combine with full data
+
+```{r}
+
+dynamite_sentiments = 
+  left_join(dynamite_sentiments, dynamite_reviews) %>% 
+    select(-urls)
+
+```
+
+Plot 
+
+```{r}
+
+dynamite_sentiments %>% 
+  mutate(
+    review_num = factor(review_num),
+    review_num = fct_reorder(review_num, review_sentiment)
+  ) %>% 
+  ggplot(aes(x = review_num, y = review_sentiment, fill = stars)) + 
+  geom_bar(stat = "identity") + 
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+
+```
+
+
+Can we look at positive and negative reviews
+
+```{r}
+
+dynamite_sentiments %>% 
+  filter(review_sentiment == max(review_sentiment))
+
+```
 

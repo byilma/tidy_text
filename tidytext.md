@@ -9,14 +9,14 @@ Setup
 library(tidyverse)
 ```
 
-    ## ── Attaching packages ─────────────────────────────────────────────────────────────────────────────────── tidyverse 1.3.0 ──
+    ## ── Attaching packages ───────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidyverse 1.3.0 ──
 
     ## ✓ ggplot2 3.3.2     ✓ purrr   0.3.4
     ## ✓ tibble  3.0.1     ✓ dplyr   1.0.0
     ## ✓ tidyr   1.1.0     ✓ stringr 1.4.0
     ## ✓ readr   1.3.1     ✓ forcats 0.5.0
 
-    ## ── Conflicts ────────────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ── Conflicts ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
     ## x dplyr::filter() masks stats::filter()
     ## x dplyr::lag()    masks stats::lag()
 
@@ -236,3 +236,68 @@ word_ratios %>%
 ```
 
 <img src="tidytext_files/figure-gfm/unnamed-chunk-10-1.png" width="90%" />
+
+## Sentiment Analysis
+
+Load lexicon
+
+``` r
+bing_sentiments = get_sentiments("bing")
+```
+
+``` r
+dynamite_sentiments = inner_join(dynamite_words, bing_sentiments) %>% 
+  count(review_num, sentiment) %>% 
+    pivot_wider(
+      names_from = sentiment, 
+      values_from = n,
+      values_fill = 0
+    )  %>% 
+    mutate(
+      review_sentiment = positive - negative
+    ) %>% 
+    select(review_num, review_sentiment)
+```
+
+    ## Joining, by = "word"
+
+Combine with full data
+
+``` r
+dynamite_sentiments = 
+  left_join(dynamite_sentiments, dynamite_reviews) %>% 
+    select(-urls)
+```
+
+    ## Joining, by = "review_num"
+
+Plot
+
+``` r
+dynamite_sentiments %>% 
+  mutate(
+    review_num = factor(review_num),
+    review_num = fct_reorder(review_num, review_sentiment)
+  ) %>% 
+  ggplot(aes(x = review_num, y = review_sentiment, fill = stars)) + 
+  geom_bar(stat = "identity") + 
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+```
+
+<img src="tidytext_files/figure-gfm/unnamed-chunk-14-1.png" width="90%" />
+
+Can we look at positive and negative reviews
+
+``` r
+dynamite_sentiments %>% 
+  filter(review_sentiment == max(review_sentiment))
+```
+
+    ## # A tibble: 1 x 6
+    ##   review_num review_sentiment  page title       stars text                      
+    ##        <int>            <int> <int> <chr>       <dbl> <chr>                     
+    ## 1        701                6    71 love love …     5 love love love love love.…
